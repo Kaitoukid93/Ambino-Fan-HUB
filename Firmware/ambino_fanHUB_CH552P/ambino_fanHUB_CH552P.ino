@@ -6,7 +6,7 @@
 #include <WS2812.h>
 
 
-#define NUM_LEDS_PER_FAN 48  /// max led number supported
+#define NUM_LEDS_PER_FAN 32 /// max led number supported
 #define COLOR_PER_LEDS 3 /// 3 chanel per led
 #define NUM_BYTES_PER_FAN (NUM_LEDS_PER_FAN*COLOR_PER_LEDS)  /// number of bytes 
 #define MAGICSIZE  sizeof(magic)
@@ -26,7 +26,6 @@ const uint8_t magic2[] = {
   'A', 'd', 'a'
 };
 __xdata uint8_t ledData[NUM_BYTES_PER_FAN];//maximum leds per fan support
-uint16_t outPos;  //current byte index in the LEDs array
 uint8_t currentOutput;
 __xdata uint8_t * ledsRaw = (uint8_t *)ledData;
 uint16_t outPos;  // current byte index in the LED array
@@ -68,38 +67,12 @@ void setup()
   pinMode(DEBUG_LED, OUTPUT);
   digitalWrite(DEBUG_LED, LOW);
 #endif
-
-  // Serial0_begin(9600);
-  ////test sequence///
-  //  for (uint8_t i = 0; i < NUM_LEDS_PER_FAN; i++) {
-  //    set_pixel_for_GRB_LED(ledData_Fan1, i, 100, 0, 0); //Choose the color order depending on the LED you use.
-  //    neopixel_show_P1_7(ledData_Fan1, NUM_BYTES_PER_FAN); //Possible to use other pins.
-  //    delay(5);
-  //  }
-  //  for (uint8_t i = 0; i < NUM_LEDS_PER_FAN; i++) {
-  //    set_pixel_for_GRB_LED(ledData_Fan1, i, 0, 100, 0);
-  //    neopixel_show_P1_7(ledData_Fan1, NUM_BYTES_PER_FAN);
-  //    delay(5);
-  //  }
-  //  for (uint8_t i = 0; i < NUM_LEDS_PER_FAN; i++) {
-  //    set_pixel_for_GRB_LED(ledData_Fan1, i, 0, 0, 100);
-  //    neopixel_show_P1_7(ledData_Fan1, NUM_BYTES_PER_FAN);
-  //    delay(5);
-  //  }
-  //  for (uint8_t i = 0; i < NUM_LEDS_PER_FAN; i++) {
-  //    set_pixel_for_GRB_LED(ledData_Fan1, i, 0, 0, 0);
-  //    neopixel_show_P1_7(ledData_Fan1, NUM_BYTES_PER_FAN);
-  //    delay(5);
-  //  }
-
-  ///end///
   lastByteTime = lastAckTime = millis(); // Set initial counters
   USBSerial_print_s("Abn\n");
   USBSerial_flush();
   delay(100);
   //  USBSerial_print_s("Ada\n"); // Send ACK string to host
   USBSerial_flush();
-
 }
 
 void loop()
@@ -119,7 +92,7 @@ void loop()
         dataMode();
         break;
     }
-    
+
   }
   else {
     // No new data
@@ -130,8 +103,6 @@ void loop()
 
 void headerMode()
 {
-
-
   static uint8_t
   headPos,
   hi, lo, sum, output;
@@ -154,7 +125,6 @@ void headerMode()
     }
     else if (serialChar == serial[headPos]) //Application asking for Serial Number of ther device
     {
-
       if (headPos == 2)
       {
         USBSerial_print_s("ID:");
@@ -170,7 +140,6 @@ void headerMode()
         // USBSerial_print_c(' ');
         USBSerial_println();
       }
-
       headPos++;
     }
 
@@ -193,42 +162,44 @@ void headerMode()
     ///first 6 byte param///
     switch (headPos) {
       case HICHECK:
-        hi = serialChar;
+        hi = serialChar; // hi byte LED number
         headPos++;
         break;
       case LOCHECK:
-        lo = serialChar;
+        lo = serialChar; // low byte LED number
         headPos++;
         break;
       case SUM:
-        sum = serialChar;
+        sum = serialChar; // checksum
         headPos++;
         break;
       case HEADER1:
-        output = serialChar;
+        output = serialChar; // Which output this data is for
         headPos++;
         break;
       case HEADER2:
-      headPos++;
+        // tbd
+        headPos++;
         break;
       case HEADER3:
-        
+        // tbd
         switch (App) {
           case Ambino:
             if (sum == (hi ^ lo ^ 0x55)) // sum matched
             {
+              //turn on signal LED , data is valid
               D_LED(ON);
-              
+              // how many bytes left to read, add 1
               bytesRemaining = 3L * (256L * (long)hi + (long)lo + 1L);
-              
+              // reset data byte position
               outPos = 0;
-              
+              // clear all LEDs
               memset(ledData, 0, NUM_BYTES_PER_FAN );
-              
+              // Set current output
               currentOutput = output;
-              
-              Stage = Data; // Proceed to latch wait mode
-              
+              // Proceed to data mode
+              Stage = Data;
+
             }
 
             headPos = 0; // Reset header position regardless of checksum result
@@ -241,12 +212,8 @@ void headerMode()
               // (# LEDs is always > 0) and multiply by 3 for R,G,B.
               D_LED(ON);
               bytesRemaining = 3L * (256L * (long)hi + (long)lo + 1L);
-        
               outPos = 0;
- 
-              
               memset(ledData, 0, NUM_BYTES_PER_FAN );
-      
               Stage = Data; // Proceed to latch wait mode
             }
             headPos = 0; // Reset header position regardless of checksum result
@@ -259,52 +226,52 @@ void headerMode()
 
 void dataMode() {
 
-   if (outPos < sizeof(ledData)) {
+  if (outPos < sizeof(ledData)) {
     ledsRaw[outPos++] = serialChar; // Issue next byte
   }
- 
+
   bytesRemaining--;
   if (bytesRemaining == 0) {
-    // End of data -- issue latch:
+    // End of data -- Show LED:
     Stage = Header; // Begin next header search
-   
     switch (currentOutput)
     {
       case 0:
-        neopixel_show_P1_5(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P1_5(ledData, outPos - 3); // FastLED.show();
         break;
       case 1:
-        neopixel_show_P1_4(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P1_4(ledData, outPos - 3); // FastLED.show();
         break;
       case 2:
-        neopixel_show_P3_2(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P3_2(ledData, outPos - 3); // FastLED.show();
         break;
       case 3:
-        neopixel_show_P1_6(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P1_6(ledData, outPos - 3); // FastLED.show();
         break;
       case 4:
-        neopixel_show_P1_7(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P1_7(ledData, outPos - 3); // FastLED.show();
         break;
       case 5:
-        neopixel_show_P3_1(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P3_1(ledData, outPos - 3); // FastLED.show();
         break;
       case 6:
-        neopixel_show_P3_0(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P3_0(ledData, outPos - 3); // FastLED.show();
         break;
       case 7:
-        neopixel_show_P1_1(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P1_1(ledData, outPos - 3); // FastLED.show();
         break;
       case 8:
-        neopixel_show_P1_0(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P1_0(ledData, outPos - 3); // FastLED.show();
         break;
       case 9:
-        neopixel_show_P3_3(ledData, outPos-3); // FastLED.show();
+        neopixel_show_P3_3(ledData, outPos - 3); // FastLED.show();
         break;
     }
+    // turn off signal LEDs, Frame finished
     D_LED(OFF);
-    
+    // Flush serial to clear ring buffer
     USBSerial_flush();
-    
+
   }
 }
 
