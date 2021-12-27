@@ -44,7 +44,7 @@
     )
     (pad_to_mask_clearance 0)
     (pcbplotparams
-      (layerselection 0x00010fc_ffffffff)
+      (layerselection 0x00012fc_ffffffff)
       (disableapertmacros false)
       (usegerberextensions true)
       (usegerberattributes true)
@@ -2239,9 +2239,9 @@
       (net 4 "GND") (pinfunction "Pin_10") (pintype "passive") (tstamp ac095359-c127-4220-89e1-91e302c58e08))
     (pad "11" smd roundrect locked (at 10 -2.85 180) (size 1 3.5) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.25)
       (net 40 "PWM_Chasis") (pinfunction "Pin_11") (pintype "passive") (tstamp 7db40ba4-0752-4774-90fc-086a4b37b812))
-    (pad "MP" smd roundrect locked (at 12.35 2.9 180) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.166667)
+    (pad "MP" smd roundrect locked (at 12.35 2.9 180) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.1666673333)
       (net 4 "GND") (tstamp 24a9ff9c-1105-47b9-a06f-cbd53b2214d6))
-    (pad "MP" smd roundrect locked (at -12.35 2.9 180) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.166667)
+    (pad "MP" smd roundrect locked (at -12.35 2.9 180) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.1666673333)
       (net 4 "GND") (tstamp f8710707-1769-4c9a-aa03-6e4c5ffceb16))
     (model "I:/Ambino HUBV3/3D Resource/S11B-PH-SM4-TB.STEP"
       (offset (xyz -25.9 12.5 0))
@@ -3659,9 +3659,9 @@
       (net 4 "GND") (pinfunction "Pin_10") (pintype "passive") (tstamp 4c39be59-b093-468c-a984-4485a8a90f0b))
     (pad "11" smd roundrect locked (at 10 -2.85) (size 1 3.5) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.25)
       (net 40 "PWM_Chasis") (pinfunction "Pin_11") (pintype "passive") (tstamp 84e5e150-6559-4a73-9c98-dd7def5a51b0))
-    (pad "MP" smd roundrect locked (at 12.35 2.9) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.166667)
+    (pad "MP" smd roundrect locked (at 12.35 2.9) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.1666673333)
       (net 4 "GND") (tstamp 6763b071-ee1e-4045-8ab1-99cadebe535c))
-    (pad "MP" smd roundrect locked (at -12.35 2.9) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.166667)
+    (pad "MP" smd roundrect locked (at -12.35 2.9) (size 1.5 3.4) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.1666673333)
       (net 4 "GND") (tstamp e94dfe8b-2a89-44d2-beec-206a1417d69d))
     (model "I:/Ambino HUBV3/3D Resource/S11B-PH-SM4-TB.STEP"
       (offset (xyz -25.9 12.5 0))
