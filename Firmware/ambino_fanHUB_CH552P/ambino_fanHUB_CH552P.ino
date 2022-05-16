@@ -6,7 +6,7 @@
 #include <WS2812.h>
 
 
-#define NUM_LEDS_PER_FAN 32 /// max led number supported
+#define NUM_LEDS_PER_FAN 8 /// max led number supported
 #define COLOR_PER_LEDS 3 /// 3 chanel per led
 #define NUM_BYTES_PER_FAN (NUM_LEDS_PER_FAN*COLOR_PER_LEDS)  /// number of bytes 
 #define MAGICSIZE  sizeof(magic)
@@ -16,7 +16,7 @@
 #define HEADER1   (MAGICSIZE + 3) // Which output to display
 #define HEADER2   (MAGICSIZE + 4)// preserved for future purpose 
 #define HEADER3   (MAGICSIZE + 5)// preserved for future purpose 
-#define DEBUG_LED 34
+//#define DEBUG_LED 34
 enum processModes_t {Header, Data} Stage = Header;
 enum app {Ambino, Adalight} App = Ambino;
 const uint8_t magic[] = {'a', 'b', 'n'};
@@ -53,16 +53,16 @@ void timeouts();
 void setup()
 {
   USBInit();
-  pinMode(15, OUTPUT); //Possible to use other pins.
-  pinMode(14, OUTPUT); //Possible to use other pins.
-  pinMode(32, OUTPUT); //Possible to use other pins.
-  pinMode(16, OUTPUT); //Possible to use other pins.
-  pinMode(17, OUTPUT); //Possible to use other pins.
   pinMode(31, OUTPUT); //Possible to use other pins.
+  pinMode(32, OUTPUT); //Possible to use other pins.
   pinMode(30, OUTPUT); //Possible to use other pins.
-  pinMode(11, OUTPUT); //Possible to use other pins.
-  pinMode(10, OUTPUT); //Possible to use other pins.
+  pinMode(14, OUTPUT); //Possible to use other pins.
+  pinMode(34, OUTPUT); //Possible to use other pins.
+  pinMode(15, OUTPUT); //Possible to use other pins.
   pinMode(33, OUTPUT); //Possible to use other pins.
+  pinMode(16, OUTPUT); //Possible to use other pins.
+  pinMode(11, OUTPUT); //Possible to use other pins.
+  pinMode(17, OUTPUT); //Possible to use other pins.
 #ifdef DEBUG_LED
   pinMode(DEBUG_LED, OUTPUT);
   digitalWrite(DEBUG_LED, LOW);
@@ -125,9 +125,11 @@ void headerMode()
     }
     else if (serialChar == serial[headPos]) //Application asking for Serial Number of ther device
     {
-      if (headPos == 2)
+        if (headPos == 2)
       {
-        USBSerial_print_s("ID:");
+      
+        USBSerial_print_s("abn");
+        USBSerial_print_s("|");
         USBSerial_print_ub(*(__code uint8_t*)(0x3FFC), HEX);
         // USBSerial_print_c(' ');
         USBSerial_print_ub(*(__code uint8_t*)(0x3FFD), HEX);
@@ -138,7 +140,24 @@ void headerMode()
         //  USBSerial_print_c(' ');
         USBSerial_print_ub(*(__code uint8_t*)(0x3FFA), HEX);
         // USBSerial_print_c(' ');
-        USBSerial_println();
+        USBSerial_print_ub(*(__code uint8_t*)(0x3FFB), HEX);
+        // USBSerial_print_c(' ');
+
+        //folowing device Name
+        USBSerial_print_s("|");
+        USBSerial_print_s("Ambino FanHUB");
+         USBSerial_print_s("|");
+        USBSerial_print_s("ABFANHUB");
+        USBSerial_print_s("|");
+        USBSerial_print_s("1.0.2");
+        USBSerial_print_s("|");
+        USBSerial_print_s("CH552G");
+        USBSerial_print_s("|");
+        USBSerial_print_s("5");
+        USBSerial_print_s("|");
+        USBSerial_print_s("5000");
+        USBSerial_println();;
+        
       }
       headPos++;
     }
@@ -190,7 +209,7 @@ void headerMode()
               //turn on signal LED , data is valid
               D_LED(ON);
               // how many bytes left to read, add 1
-              bytesRemaining = 3L * (256L * (long)hi + (long)lo + 1L);
+              bytesRemaining = 3L * (256L * (long)hi + (long)lo);
               // reset data byte position
               outPos = 0;
               // clear all LEDs
@@ -211,7 +230,7 @@ void headerMode()
               // Checksum looks valid. Get 16-bit LED count, add 1
               // (# LEDs is always > 0) and multiply by 3 for R,G,B.
               D_LED(ON);
-              bytesRemaining = 3L * (256L * (long)hi + (long)lo + 1L);
+              bytesRemaining = 3L * (256L * (long)hi + (long)lo);
               outPos = 0;
               memset(ledData, 0, NUM_BYTES_PER_FAN );
               Stage = Data; // Proceed to latch wait mode
@@ -226,8 +245,9 @@ void headerMode()
 
 void dataMode() {
 
-  if (outPos < sizeof(ledData)) {
-    ledsRaw[outPos++] = serialChar; // Issue next byte
+  if (outPos < (sizeof(ledData)+3)) {
+    ledsRaw[outPos] = serialChar; // Issue next byte
+    outPos++;
   }
 
   bytesRemaining--;
@@ -237,34 +257,34 @@ void dataMode() {
     switch (currentOutput)
     {
       case 0:
-        neopixel_show_P1_5(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P3_1(ledData, outPos +1); // FastLED.show();
         break;
       case 1:
-        neopixel_show_P1_4(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P3_2(ledData, outPos +1); // FastLED.show();
         break;
       case 2:
-        neopixel_show_P3_2(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P3_0(ledData, outPos +1); // FastLED.show();
         break;
       case 3:
-        neopixel_show_P1_6(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P1_4(ledData, outPos +1); // FastLED.show();
         break;
       case 4:
-        neopixel_show_P1_7(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P3_4(ledData, outPos +1); // FastLED.show();
         break;
       case 5:
-        neopixel_show_P3_1(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P1_5(ledData, outPos +1); // FastLED.show();
         break;
       case 6:
-        neopixel_show_P3_0(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P3_3(ledData, outPos +1); // FastLED.show();
         break;
       case 7:
-        neopixel_show_P1_1(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P1_6(ledData, outPos +1); // FastLED.show();
         break;
       case 8:
-        neopixel_show_P1_0(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P1_1(ledData, outPos +1); // FastLED.show();
         break;
       case 9:
-        neopixel_show_P3_3(ledData, outPos - 3); // FastLED.show();
+        neopixel_show_P1_7(ledData, outPos +1); // FastLED.show();
         break;
     }
     // turn off signal LEDs, Frame finished
@@ -283,7 +303,7 @@ void timeouts() {
   if ((t - lastAckTime) >= 1000) {
     switch (App) {
       case Ambino:
-        USBSerial_println_s("Abn\n"); // Send ACK string to host
+       // USBSerial_println_s("Abn\n"); // Send ACK string to host
         USBSerial_flush();
         if (ledState == 0) {
           ledState = 1;
@@ -294,7 +314,7 @@ void timeouts() {
         }
         break;
       case Adalight:
-        USBSerial_print_s("Ada\n"); // Send ACK string to host
+       // USBSerial_print_s("Ada\n"); // Send ACK string to host
         USBSerial_flush();
         if (ledState == 0) {
           ledState = 1;
