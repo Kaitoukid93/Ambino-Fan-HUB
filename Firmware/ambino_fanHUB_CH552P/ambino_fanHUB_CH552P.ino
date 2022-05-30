@@ -20,11 +20,10 @@
 enum processModes_t {Header, Data} Stage = Header;
 enum app {Ambino, Adalight} App = Ambino;
 const uint8_t magic[] = {'a', 'b', 'n'};
-const uint8_t serial[] = {'d', 'i', 'd'};
-const uint8_t firmware[] = {'f', 'v', 'r'};
-const uint8_t magic2[] = {
-  'A', 'd', 'a'
-};
+const uint8_t serial[] = {'d', 'i', 'r'};
+const uint8_t magic2[] = {'A', 'd', 'a'};
+const uint8_t deviceName[] = {'A', 'm', 'b', 'i', 'n', 'o', ' ', 'F', 'a', 'n', 'H', 'u','b'};
+const uint8_t fwVersion[] = {'1', '.', '0', '.', '1'};
 __xdata uint8_t ledData[NUM_BYTES_PER_FAN];//maximum leds per fan support
 uint8_t currentOutput;
 __xdata uint8_t * ledsRaw = (uint8_t *)ledData;
@@ -125,52 +124,42 @@ void headerMode()
     }
     else if (serialChar == serial[headPos]) //Application asking for Serial Number of ther device
     {
-        if (headPos == 2)
+       if (headPos == 2)
       {
-      
-        USBSerial_print_s("abn");
-        USBSerial_print_s("|");
-        USBSerial_print_ub(*(__code uint8_t*)(0x3FFC), HEX);
+        USBSerial_write(15);
+        USBSerial_write(12);
+        USBSerial_write(93);
+        byte idSize = sizeof(*(__code uint8_t*)(0x3FFC)) + sizeof(*(__code uint8_t*)(0x3FFD)) + sizeof(*(__code uint8_t*)(0x3FFE)) + sizeof(*(__code uint8_t*)(0x3FFF)) + sizeof(*(__code uint8_t*)(0x3FFA)) + sizeof(*(__code uint8_t*)(0x3FFB)) ;
+        USBSerial_write(idSize);
+        USBSerial_write(*(__code uint8_t*)(0x3FFC));
         // USBSerial_print_c(' ');
-        USBSerial_print_ub(*(__code uint8_t*)(0x3FFD), HEX);
+        USBSerial_write(*(__code uint8_t*)(0x3FFD));
         // USBSerial_print_c(' ');
-        USBSerial_print_ub(*(__code uint8_t*)(0x3FFE), HEX);
+        USBSerial_write(*(__code uint8_t*)(0x3FFE));
         // USBSerial_print_c(' ');
-        USBSerial_print_ub(*(__code uint8_t*)(0x3FFF), HEX);
+        USBSerial_write(*(__code uint8_t*)(0x3FFF));
         //  USBSerial_print_c(' ');
-        USBSerial_print_ub(*(__code uint8_t*)(0x3FFA), HEX);
+        USBSerial_write(*(__code uint8_t*)(0x3FFA));
         // USBSerial_print_c(' ');
-        USBSerial_print_ub(*(__code uint8_t*)(0x3FFB), HEX);
+        USBSerial_write(*(__code uint8_t*)(0x3FFB));
         // USBSerial_print_c(' ');
-
-        //folowing device Name
-        USBSerial_print_s("|");
-        USBSerial_print_s("Ambino FanHUB");
-         USBSerial_print_s("|");
-        USBSerial_print_s("ABFANHUB");
-        USBSerial_print_s("|");
-        USBSerial_print_s("1.0.2");
-        USBSerial_print_s("|");
-        USBSerial_print_s("CH552G");
-        USBSerial_print_s("|");
-        USBSerial_print_s("5");
-        USBSerial_print_s("|");
-        USBSerial_print_s("5000");
-        USBSerial_println();;
-        
+        byte nameSize = sizeof(deviceName);
+        USBSerial_write(nameSize);
+        for (int i = 0; i < nameSize; i++)
+        {
+          USBSerial_write(deviceName[i]);
+        }
+        byte fwSize = sizeof(fwVersion);
+        USBSerial_write(fwSize);
+        for (int j = 0; j < fwSize; j++)
+        {
+          USBSerial_write(fwVersion[j]);
+        }
+        headPos = 0;
       }
       headPos++;
     }
 
-    else if (serialChar == firmware[headPos]) {
-      if (headPos == 2)
-      {
-        USBSerial_print_s("FW: 1.0.1");
-        USBSerial_println();
-      }
-      headPos++;
-
-    }
     else {
       headPos = 0;
     }
