@@ -6,7 +6,7 @@
 #include <WS2812.h>
 
 
-#define NUM_LEDS_PER_FAN 8 /// max led number supported
+#define NUM_LEDS_PER_FAN 20 /// max led number supported
 #define COLOR_PER_LEDS 3 /// 3 chanel per led
 #define NUM_BYTES_PER_FAN (NUM_LEDS_PER_FAN*COLOR_PER_LEDS)  /// number of bytes 
 #define MAGICSIZE  sizeof(magic)
@@ -23,7 +23,8 @@ const uint8_t magic[] = {'a', 'b', 'n'};
 const uint8_t serial[] = {'d', 'i', 'r'};
 const uint8_t magic2[] = {'A', 'd', 'a'};
 const uint8_t deviceName[] = {'A', 'm', 'b', 'i', 'n', 'o', ' ', 'F', 'a', 'n', 'H', 'u','b'};
-const uint8_t fwVersion[] = {'1', '.', '0', '.', '1'};
+const uint8_t fwVersion[] = {'1', '.', '0', '.', '3'};
+const uint8_t hwVersion[] = {'A', 'F', 'R', '1', 'g'}; // pcb rev1 using ch552p MCU
 __xdata uint8_t ledData[NUM_BYTES_PER_FAN];//maximum leds per fan support
 uint8_t currentOutput;
 __xdata uint8_t * ledsRaw = (uint8_t *)ledData;
@@ -154,6 +155,12 @@ void headerMode()
         for (int j = 0; j < fwSize; j++)
         {
           USBSerial_write(fwVersion[j]);
+        }
+         byte hwSize = sizeof(hwVersion);
+        USBSerial_write(hwSize);
+        for (int k = 0; k < hwSize; k++)
+        {
+          USBSerial_write(hwVersion[k]);
         }
         headPos = 0;
       }

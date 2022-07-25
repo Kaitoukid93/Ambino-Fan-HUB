@@ -1,0 +1,469 @@
+#ifndef USER_USB_RAM
+#error "This example needs to be compiled with a USER USB setting"
+#endif
+
+#include "src/userUsbCdc/USBCDC.h"
+#include <WS2812.h>
+
+
+#define NUM_LEDS_PER_FAN 20 /// max led number supported
+#define COLOR_PER_LEDS 3 /// 3 chanel per led
+#define NUM_BYTES_PER_FAN (NUM_LEDS_PER_FAN*COLOR_PER_LEDS)  /// number of bytes 
+#define MAGICSIZE  sizeof(magic)
+#define HICHECK    (MAGICSIZE)
+#define LOCHECK    (MAGICSIZE + 1)
+#define SUM   (MAGICSIZE + 2)
+#define HEADER1   (MAGICSIZE + 3) // Which output to display
+#define HEADER2   (MAGICSIZE + 4)// preserved for future purpose 
+#define HEADER3   (MAGICSIZE + 5)// preserved for future purpose 
+//#define DEBUG_LED 34
+enum processModes_t {Header, DataLED, DataSpeed} Stage = Header;
+enum app {Ambino, Adalight} App = Ambino;
+enum ambinoDataMode {LED, Speed} DataMode = LED;
+bool fanSpeedChanged = true;
+const uint8_t magic[] = {'a', 'b', 'n'};
+const uint8_t serial[] = {'d', 'i', 'r'};
+const uint8_t fanSpeed[] = {'s', 'p', 'd'};
+const uint8_t fanSpeedRequest[] = {'1', '5', '4'};
+const uint8_t magic2[] = {'A', 'd', 'a'};
+const uint8_t deviceName[] = {'A', 'm', 'b', 'i', 'n', 'o', ' ', 'F', 'a', 'n', 'H', 'u', 'b'};
+const uint8_t fwVersion[] = {'1', '.', '0', '.', '3'};
+const uint8_t hwVersion[] = {'A', 'F', 'R', '1', 'g'}; // pcb rev1 using ch552p MCU
+__xdata uint8_t ledData[NUM_BYTES_PER_FAN];//maximum leds per fan support
+__xdata uint8_t speedData[10];//maximum 10 fans support
+uint8_t currentOutput;
+uint8_t speedMode;
+__xdata uint8_t * ledsRaw = (uint8_t *)ledData;
+uint16_t outPos;  // current byte index in the LED array
+uint32_t bytesRemaining;  // count of bytes yet received, set by checksum
+char serialChar;
+unsigned long t, lastByteTime, lastAckTime;  // millisecond timestamps
+uint16_t
+SerialTimeout  = 0; // set to 0 if you want led stay what it was at the las second after disconnect from application
+
+
+int ledState = 0;
+void headerMode();
+void dataMode();
+void timeouts();
+#ifdef DEBUG_LED
+#define ON  1
+#define OFF 0
+
+#define D_LED(x) do {digitalWrite(DEBUG_LED, x);} while(0)
+#else
+#define D_LED(x)
+#endif
+
+
+void setup()
+{
+  USBInit();
+  pinMode(31, OUTPUT); //Possible to use other pins.
+  pinMode(32, OUTPUT); //Possible to use other pins.
+  pinMode(30, OUTPUT); //Possible to use other pins.
+  pinMode(14, OUTPUT); //Possible to use other pins.
+  pinMode(34, OUTPUT); //Possible to use other pins.
+  pinMode(15, OUTPUT); //Possible to use other pins.
+  pinMode(33, OUTPUT); //Possible to use other pins.
+  pinMode(16, OUTPUT); //Possible to use other pins.
+  pinMode(11, OUTPUT); //Possible to use other pins.
+  pinMode(17, OUTPUT); //Possible to use other pins.
+#ifdef DEBUG_LED
+  pinMode(DEBUG_LED, OUTPUT);
+  digitalWrite(DEBUG_LED, LOW);
+#endif
+  lastByteTime = lastAckTime = millis(); // Set initial counters
+  USBSerial_print_s("Abn\n");
+  USBSerial_flush();
+  delay(100);
+  //  USBSerial_print_s("Ada\n"); // Send ACK string to host
+  USBSerial_flush();
+
+}
+
+void loop()
+{
+
+  if (fanSpeedChanged)
+  {
+    fanSpeedChanged = false;
+    applyFanSpeed();
+  }
+  t = millis(); // Save current time
+
+  // If there is new serial dataUSBSerial_available()
+  if (USBSerial_available()) {
+    serialChar = USBSerial_read();
+    lastByteTime = lastAckTime = t; // Reset timeout counters
+
+    switch (Stage) {
+      case Header:
+        headerMode();
+        break;
+      case DataLED:
+        dataLEDMode();
+        break;
+      case DataSpeed:
+        dataSpeedMode();
+        break;
+    }
+
+  }
+  else {
+    // No new data
+    timeouts();
+  }
+}
+
+void applyFanSpeed()
+{
+
+  for (uint8_t i = 0; i < sizeof(speedData); i++)
+  {
+    byte spd = eeprom_read_byte(i);
+    if (spd == 0)// indicate first time run or some error occur to the eeprom data
+    {
+      // set new speed 200
+      eeprom_write_byte(i,200);
+      speedData[i] = 200;
+    }
+    else
+    {
+      speedData[i] = eeprom_read_byte(i);
+    }
+    
+      
+  }
+  // recover pin state for serial
+  digitalWrite(30, HIGH);
+  digitalWrite(31, HIGH);
+  Serial0_begin(9600);
+  Serial0_write('a');
+  Serial0_write('b');
+  Serial0_write('n'); // write 3 byte header
+  Serial0_write(0);
+  Serial0_write(0);
+  Serial0_write(0);
+  Serial0_write(speedMode);
+  Serial0_write(0);
+  Serial0_write(0);
+  for (uint8_t i = 0; i < sizeof(speedData); i++)
+  {
+    Serial0_write(speedData[i]);
+  }
+  //  Serial0_end();
+  delay(500);
+  USBSerial_println_s("Applied Fan Speed");
+
+}
+void headerMode()
+{
+  static uint8_t
+  headPos,
+  hi, lo, sum, output;
+  if (headPos < MAGICSIZE) {
+    // Check if magic word matches
+    if (serialChar == magic[headPos]) {
+      if (headPos == 2)
+      {
+        App = Ambino;
+        DataMode = LED;
+      }
+      headPos++;
+    }
+    else if (serialChar == magic2[headPos]) {
+
+      if (headPos == 2)
+      {
+        App = Adalight;
+
+      }
+      headPos++;
+    }
+    else if (serialChar == serial[headPos]) //Application asking for Serial Number of ther device
+    {
+      if (headPos == 2)
+      {
+        USBSerial_write(15);
+        USBSerial_write(12);
+        USBSerial_write(93);
+        byte idSize = sizeof(*(__code uint8_t*)(0x3FFC)) + sizeof(*(__code uint8_t*)(0x3FFD)) + sizeof(*(__code uint8_t*)(0x3FFE)) + sizeof(*(__code uint8_t*)(0x3FFF)) + sizeof(*(__code uint8_t*)(0x3FFA)) + sizeof(*(__code uint8_t*)(0x3FFB)) ;
+        USBSerial_write(idSize);
+        USBSerial_write(*(__code uint8_t*)(0x3FFC));
+        // USBSerial_print_c(' ');
+        USBSerial_write(*(__code uint8_t*)(0x3FFD));
+        // USBSerial_print_c(' ');
+        USBSerial_write(*(__code uint8_t*)(0x3FFE));
+        // USBSerial_print_c(' ');
+        USBSerial_write(*(__code uint8_t*)(0x3FFF));
+        //  USBSerial_print_c(' ');
+        USBSerial_write(*(__code uint8_t*)(0x3FFA));
+        // USBSerial_print_c(' ');
+        USBSerial_write(*(__code uint8_t*)(0x3FFB));
+        // USBSerial_print_c(' ');
+        byte nameSize = sizeof(deviceName);
+        USBSerial_write(nameSize);
+        for (int i = 0; i < nameSize; i++)
+        {
+          USBSerial_write(deviceName[i]);
+        }
+        byte fwSize = sizeof(fwVersion);
+        USBSerial_write(fwSize);
+        for (int j = 0; j < fwSize; j++)
+        {
+          USBSerial_write(fwVersion[j]);
+        }
+        byte hwSize = sizeof(hwVersion);
+        USBSerial_write(hwSize);
+        for (int k = 0; k < hwSize; k++)
+        {
+          USBSerial_write(hwVersion[k]);
+        }
+        headPos = 0;
+      }
+      headPos++;
+    }
+    else if (serialChar == fanSpeed[headPos])
+    {
+      if (headPos == 2)
+      {
+        App = Ambino;
+        DataMode = Speed;
+      }
+      headPos++;
+    }
+    else if (serialChar == fanSpeedRequest[headPos])
+    {
+      if (headPos == 2)
+      {
+        //respond with fan speed
+        //header first
+        USBSerial_write(15);
+        USBSerial_write(12);
+        USBSerial_write(93);
+        byte speedSize = sizeof(speedData);
+        USBSerial_write(speedSize);
+        //then speed
+        for (uint8_t i = 0; i < sizeof(speedData); i++)
+        {
+          USBSerial_write(eeprom_read_byte(i));
+        }
+
+      }
+      headPos++;
+    }
+
+    else {
+      headPos = 0;
+    }
+  }
+  else {
+
+    ///read in to string////
+    ///first 6 byte param///
+    switch (headPos) {
+      case HICHECK:
+        hi = serialChar; // hi byte LED number
+        headPos++;
+        break;
+      case LOCHECK:
+        lo = serialChar; // low byte LED number
+        headPos++;
+        break;
+      case SUM:
+        sum = serialChar; // checksum
+        headPos++;
+        break;
+      case HEADER1:
+        output = serialChar; // Which output this data is for
+        headPos++;
+        break;
+      case HEADER2:
+        // tbd
+        headPos++;
+        break;
+      case HEADER3:
+        // tbd
+        switch (App) {
+          case Ambino:
+            switch (DataMode)
+            {
+              case LED:
+                if (sum == (hi ^ lo ^ 0x55)) // sum matched
+                {
+                  //turn on signal LED , data is valid
+                  D_LED(ON);
+                  // how many bytes left to read, add 1
+                  bytesRemaining = 3L * (256L * (long)hi + (long)lo);
+                  // reset data byte position
+                  outPos = 0;
+                  // clear all LEDs
+                  memset(ledData, 0, NUM_BYTES_PER_FAN );
+                  // Set current output
+                  currentOutput = output;
+                  // Proceed to LED data mode
+                  Stage = DataLED;
+
+                }
+
+                headPos = 0; // Reset header position regardless of checksum result
+                break;
+              case Speed:
+                //                if (sum == (hi ^ lo ^ 0x55)) // sum matched
+                //                {
+                //turn on signal LED , data is valid
+                D_LED(ON);
+                // how many bytes left to read, add 1
+                // bytesRemaining = 3L * (256L * (long)hi + (long)lo);
+                // reset data byte position
+                outPos = 0;
+                speedMode = output;
+                // clear all LEDs and set indicator here
+                // memset(ledData, 0, NUM_BYTES_PER_FAN );
+                // Proceed to  Speed data mode
+                Stage = DataSpeed;
+
+                //                }
+                headPos = 0; // Reset header position regardless of checksum result
+                break;
+            }
+
+            break;
+          case Adalight:
+            // Serial0_println_s("Ada");
+            if (sum == (hi ^ lo ^ 0x55)) { //sum matched
+              // Checksum looks valid. Get 16-bit LED count, add 1
+              // (# LEDs is always > 0) and multiply by 3 for R,G,B.
+              D_LED(ON);
+              bytesRemaining = 3L * (256L * (long)hi + (long)lo);
+              outPos = 0;
+              memset(ledData, 0, NUM_BYTES_PER_FAN );
+              Stage = DataLED; // Proceed to latch wait mode
+            }
+            headPos = 0; // Reset header position regardless of checksum result
+            break;
+        }
+        break;
+    }
+  }
+}
+void dataSpeedMode()
+{
+
+  // read all speed bytes
+  if (outPos < sizeof(speedData)) {
+    speedData[outPos] = serialChar; // Issue next byte
+    outPos++;
+  }
+  else
+  {
+    //save speed data to eeprom
+    for (uint8_t i = 0; i < sizeof(speedData); i++)
+    {
+      eeprom_write_byte(i, speedData[i]);
+    }
+    USBSerial_println_s("saved Fan Speed");
+    // notice fan speed changed
+    fanSpeedChanged = true;
+    Stage = Header; // Begin next header search
+
+  }
+
+}
+void dataLEDMode() {
+
+  if (outPos < (sizeof(ledData) + 3)) {
+    ledsRaw[outPos] = serialChar; // Issue next byte
+    outPos++;
+  }
+
+  bytesRemaining--;
+  if (bytesRemaining == 0) {
+    // End of data -- Show LED:
+    Stage = Header; // Begin next header search
+    switch (currentOutput)
+    {
+      case 0:
+        neopixel_show_P3_1(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 1:
+        neopixel_show_P3_2(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 2:
+        neopixel_show_P3_0(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 3:
+        neopixel_show_P1_4(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 4:
+        neopixel_show_P3_4(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 5:
+        neopixel_show_P1_5(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 6:
+        neopixel_show_P3_3(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 7:
+        neopixel_show_P1_6(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 8:
+        neopixel_show_P1_1(ledData, outPos + 1); // FastLED.show();
+        break;
+      case 9:
+        neopixel_show_P1_7(ledData, outPos + 1); // FastLED.show();
+        break;
+    }
+    // turn off signal LEDs, Frame finished
+    D_LED(OFF);
+    // Flush serial to clear ring buffer
+    USBSerial_flush();
+
+  }
+}
+
+
+void timeouts() {
+  // No data received. If this persists, send an ACK packet
+  // to host once every second to alert it to our presence.
+
+  if ((t - lastAckTime) >= 1000) {
+    switch (App) {
+      case Ambino:
+        // USBSerial_println_s("Abn\n"); // Send ACK string to host
+        USBSerial_flush();
+        if (ledState == 0) {
+          ledState = 1;
+          D_LED(ON);
+        } else {
+          ledState = 0;
+          D_LED(OFF);
+        }
+        break;
+      case Adalight:
+        // USBSerial_print_s("Ada\n"); // Send ACK string to host
+        USBSerial_flush();
+        if (ledState == 0) {
+          ledState = 1;
+          D_LED(ON);
+        } else {
+          ledState = 0;
+          D_LED(OFF);
+        }
+        break;
+    }
+
+    lastAckTime = t; // Reset counter
+
+    // If no data received for an extended time, turn off all LEDs.
+    if (SerialTimeout != 0 && (t - lastByteTime) >= (uint32_t) SerialTimeout * 1000) {
+      //      for (uint8_t i = 0; i < NUM_LEDS; i++) {
+      //        //        set_pixel_for_GRB_LED(ledData, i, 0, 0, 0); //Choose the color order depending on the LED you use.
+      //      }
+      //      neopixel_show_P3_2(ledData, NUM_BYTES); //Possible to use other pins.
+      Stage = Header;
+      lastByteTime = t; // Reset counter
+    }
+  }
+}

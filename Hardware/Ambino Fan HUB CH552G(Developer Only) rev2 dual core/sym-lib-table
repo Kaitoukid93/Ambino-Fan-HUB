@@ -1,0 +1,5 @@
+(sym_lib_table
+  (lib (name CH552P_dev_kit-rescue)(type Legacy)(uri D:/CH552-USB-LED-Controller/hardware/CH552P_dev_kit/CH552P_dev_kit-rescue.lib)(options "")(descr ""))
+  (lib (name Ambino-Fan-HUB-rescue)(type Legacy)(uri "${KIPRJMOD}/Ambino Fan HUB CH552G-rescue.lib")(options "")(descr ""))
+  (lib (name Ambino-Fan-HUB-CH552G-rescue)(type Legacy)(uri "${KIPRJMOD}/Ambino Fan HUB CH552G-rescue.lib")(options "")(descr ""))
+)
